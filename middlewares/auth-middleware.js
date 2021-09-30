@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/user")
+const { User } = require("../models");
 
 
 module.exports = (req, res, next) => {
@@ -17,7 +17,8 @@ module.exports = (req, res, next) => {
     try {
         const { userId } = jwt.verify(tokenValue, "my-secret-key");
 
-        User.findById(userId).then((user)=> {
+        User.findByPk(userId)           //findByPk 프라이머리 키로 찾는다.
+        .then((user)=> {
             res.locals.user = user;
             next();
         });
