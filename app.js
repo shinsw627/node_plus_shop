@@ -1,11 +1,74 @@
 const express = require("express");
+const Http = require("http");
+const socketIo = require("socket.io");
 const { Op } = require("sequelize");
 const jwt = require("jsonwebtoken");
 const { User, Cart, Goods } = require("./models");
 const authMiddleware = require("./middlewares/auth-middleware");
+const { DefaultDeserializer } = require("v8");
+
 
 const app = express();
+const http = Http.createServer(app);
+const io = socketIo(http);
 const router = express.Router();
+
+const socketIdMap = {};
+
+app.use(express.json());
+
+function emitSamePageViewerCount() {
+    const countByUrl = Object.values(socketIdMap).reduce((value, url) => {
+      return {
+        ...value,
+        [url]: value[url] ? value[url] + 1 : 1,
+      };
+    }, {});
+  
+    for (const [socketId, url] of Object.entries(socketIdMap)) {
+        const count = countByUrl[url];
+        io.to(socketId).emit("SAME_PAGE_VIEWER_COUNT", count);
+    }
+  }
+  
+
+io.on("connection", (socket) => {
+    console.log("새로운 소켓이 연결됐어요!");
+    socketIdMap[socket.id] = null; 
+
+
+    socket.on("CHANGED_PAGE", (data) => {
+        console.log("ㅁㄴㅇㄹ data : " , data , "socket.id : " , socket.id)
+        socketIdMap[socket.id] = data;
+
+        emitSamePageViewerCount();
+    })
+
+    socket.on("BUY", (data) => {
+        const payload = {
+            nickname: data.nickname,
+            goodsId: data.goodsId,
+            goodsName: data.goodsName,
+            date: new Date().toISOString(),
+        }
+        console.log("클라이언트가 구매한 데이터",data, new Date())
+        socket.broadcast.emit("BUY_GOODS", payload);
+    })
+
+    
+
+    
+
+
+    socket.on("disconnect", () => {
+        delete socketIdMap[socket.id];
+        console.log(socket.id, "연결이 끊어졌어요!");
+        emitSamePageViewerCount();
+    })
+})
+
+
+
 
 router.post("/users", async (req, res) => {
   const { nickname, email, password, confirmPassword } = req.body;
@@ -150,6 +213,27 @@ router.delete("/goods/:goodsId/cart", authMiddleware, async (req, res) => {
   res.send({});
 });
 
+
+
+router.post("/firstgoods", async (req, res) => {
+    console.log(req.body)
+    const { goodsId, name, thumbnailUrl, category, price } = req.body;
+    let date = new Date().toISOString();
+        await Goods.create({
+        goodsId,
+        name,
+        thumbnailUrl,
+        category,
+        price,
+        date,
+        date
+    })
+    
+
+    res.send({  });
+});
+
+
 /**
  * 모든 상품 가져오기
  * 상품도 몇개 없는 우리에겐 페이지네이션은 사치다.
@@ -185,6 +269,6 @@ router.get("/goods/:goodsId", authMiddleware, async (req, res) => {
 app.use("/api", express.urlencoded({ extended: false }), router);
 app.use(express.static("assets"));
 
-app.listen(8080, () => {
+http.listen(8080, () => {
   console.log("서버가 요청을 받을 준비가 됐어요");
 });

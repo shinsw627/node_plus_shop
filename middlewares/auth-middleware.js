@@ -5,7 +5,7 @@ const { User } = require("../models");
 module.exports = (req, res, next) => {
     const { authorization } = req.headers;
     const [toKenType, tokenValue] = authorization.split(' ');
-    console.log(tokenValue)
+    
 
     if (toKenType !== 'Bearer'){
         res.status(401).send({
